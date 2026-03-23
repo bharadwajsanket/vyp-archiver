@@ -127,6 +127,16 @@ static void *decompress_buffer(const void *src_buf, size_t src_size,
 }
 
 /*
+ * file_basename — return a pointer to the filename part of a path.
+ * e.g. "/Users/u/Downloads/file.mp4" → "file.mp4"
+ */
+static const char *file_basename(const char *path)
+{
+    const char *slash = strrchr(path, '/');
+    return slash ? slash + 1 : path;
+}
+
+/*
  * copy_bytes — copy `size` raw bytes from src to dst using a stack buffer.
  * Used only by delete_file when reconstructing the archive: the compressed
  * data blocks are copied verbatim (no re-compression needed).
@@ -288,8 +298,11 @@ int add_file(const char *file, const char *archive)
     if (!validate_archive(archive))
         return -1;
 
-    size_t path_len = strlen(file);
-    if (path_len == 0 || path_len > MAX_PATH_LEN) {
+    /* Store only the filename, not the full path. */
+    const char *name = file_basename(file);
+
+    size_t name_len = strlen(name);
+    if (name_len == 0 || name_len > MAX_PATH_LEN) {
         fprintf(stderr, "error: file path too long (max %d chars)\n", MAX_PATH_LEN);
         return -1;
     }
@@ -313,8 +326,8 @@ int add_file(const char *file, const char *archive)
     if (!read_header(fa, &header))         { fclose(fa); fclose(ff); return -1; }
     if (read_index(fa, &header, &idx) < 0) { fclose(fa); fclose(ff); return -1; }
 
-    if (find_file(&idx, file) >= 0) {
-        fprintf(stderr, "error: '%s' already exists in archive\n", file);
+    if (find_file(&idx, name) >= 0) {
+        fprintf(stderr, "error: '%s' already exists in archive\n", name);
         fclose(fa); fclose(ff);
         return -1;
     }
@@ -366,7 +379,7 @@ int add_file(const char *file, const char *archive)
     free(compressed);
 
     /* ── Step 4: update in-memory index and write it ─────────────────────── */
-    snprintf(idx.records[idx.count].path, MAX_PATH_LEN + 1, "%s", file);
+    snprintf(idx.records[idx.count].path, MAX_PATH_LEN + 1, "%s", name);
     idx.records[idx.count].offset          = data_offset;
     idx.records[idx.count].compressed_size = (uint64_t)compressed_size;
     idx.records[idx.count].original_size   = original_size;
@@ -380,7 +393,7 @@ int add_file(const char *file, const char *archive)
     fclose(fa);
 
     printf("Added %s  (%llu → %llu bytes, %.1f%%)\n",
-           file,
+           name,
            (unsigned long long)original_size,
            (unsigned long long)compressed_size,
            original_size > 0
@@ -460,6 +473,8 @@ int extract_file(const char *file, const char *archive)
     if (!validate_archive(archive))
         return -1;
 
+    const char *name = file_basename(file);
+
     FILE *fp = fopen(archive, "rb");
     if (!fp) {
         fprintf(stderr, "error: cannot open '%s': %s\n", archive, strerror(errno));
@@ -472,18 +487,18 @@ int extract_file(const char *file, const char *archive)
     if (!read_header(fp, &header))         { fclose(fp); return -1; }
     if (read_index(fp, &header, &idx) < 0) { fclose(fp); return -1; }
 
-    int pos = find_file(&idx, file);
+    int pos = find_file(&idx, name);
     if (pos < 0) {
-        fprintf(stderr, "error: '%s' not found in archive\n", file);
+        fprintf(stderr, "error: '%s' not found in archive\n", name);
         fclose(fp);
         return -1;
     }
 
-    int rc = extract_one(fp, &idx.records[pos], file);
+    int rc = extract_one(fp, &idx.records[pos], name);
     fclose(fp);
 
     if (rc == 0)
-        printf("Extracted %s\n", file);
+        printf("Extracted %s\n", name);
 
     return rc;
 }
@@ -527,6 +542,8 @@ int delete_file(const char *file, const char *archive)
     if (!validate_archive(archive))
         return -1;
 
+    const char *name = file_basename(file);
+
     FILE *fa = fopen(archive, "rb");
     if (!fa) {
         fprintf(stderr, "error: cannot open '%s': %s\n", archive, strerror(errno));
@@ -539,9 +556,9 @@ int delete_file(const char *file, const char *archive)
     if (!read_header(fa, &header))         { fclose(fa); return -1; }
     if (read_index(fa, &header, &idx) < 0) { fclose(fa); return -1; }
 
-    int pos = find_file(&idx, file);
+    int pos = find_file(&idx, name);
     if (pos < 0) {
-        fprintf(stderr, "error: '%s' not found in archive\n", file);
+        fprintf(stderr, "error: '%s' not found in archive\n", name);
         fclose(fa);
         return -1;
     }

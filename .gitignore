@@ -1,0 +1,18 @@
+# Build artifacts and binaries
+*.o
+vypack
+
+# VYP Archiver macOS app bundle
+VYP\ Archiver.app/
+VYP_Archiver.app/
+
+# GUI build files
+gui/build/
+gui/CMakeLists.txt.user
+gui/*.user
+
+# macOS specific
+.DS_Store
+
+# Temporary directory
+tmp/

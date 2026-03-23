@@ -1,11 +1,9 @@
 QT       += core gui widgets
 
-greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
+CONFIG   += c++17
 
-TARGET   = vyp_gui
+TARGET   = "VYP Archiver"
 TEMPLATE = app
-
-CONFIG += c++17
 
 SOURCES += \
     main.cpp \
@@ -18,4 +16,13 @@ HEADERS += \
 QMAKE_TARGET_BUNDLE_PREFIX = com.vyp
 macx {
     QMAKE_APPLICATION_BUNDLE_NAME = "VYP Archiver"
+
+    # ── Copy vypack engine into the app bundle AFTER linking ──
+    # Runs as a post-link step so the .app/Contents/MacOS/ dir already exists.
+    QMAKE_POST_LINK += test -f $$shell_quote($$PWD/../vypack) && \
+        cp -f $$shell_quote($$PWD/../vypack) \
+              $$shell_quote($$OUT_PWD/VYP Archiver.app/Contents/MacOS/vypack) && \
+        chmod +x $$shell_quote($$OUT_PWD/VYP Archiver.app/Contents/MacOS/vypack) && \
+        echo \"Bundled vypack engine into app\" || \
+        echo \"WARNING: ../vypack not found — build engine with make first\"
 }
